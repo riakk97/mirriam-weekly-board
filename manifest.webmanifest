@@ -1,6 +1,6 @@
 {
-  "name": "Mirriam Daily & Weekly Board",
-  "short_name": "Mirriam Board",
+  "name": "行程表",
+  "short_name": "行程表",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
