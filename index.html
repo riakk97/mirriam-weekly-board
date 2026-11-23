@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mirriam Daily &amp; Weekly Board</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="theme-color" content="#7A3036">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Mirriam Board">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <!-- 頂部導覽列 -->
+    <header class="topbar">
+      <div class="topbar-brand">
+        <div class="brand-eyebrow">MIRRIAM ENERGY &amp; DAILY SYSTEM</div>
+        <div class="brand-title-row">
+          <h1>Daily &amp; Weekly Board</h1>
+          <span id="status-badge" class="badge badge-live">載入中</span>
+        </div>
+        <div id="header-subtitle" class="brand-subtitle">正在同步台北時間今日資料…</div>
+      </div>
+      <div class="topbar-actions">
+        <button id="btn-calendar" type="button" class="btn btn-secondary" title="切換日期或查閱過往簡報">
+          <span aria-hidden="true">📅</span>
+          <span id="btn-calendar-label">查閱日期</span>
+        </button>
+        <button id="btn-refresh" type="button" class="btn btn-ghost" title="重新讀取試算表與日曆">
+          <span aria-hidden="true">🔄</span>
+          <span class="hide-sm">重新整理</span>
+        </button>
+        <button id="btn-settings" type="button" class="btn btn-ghost" title="設定 GAS Web App 網址">
+          <span aria-hidden="true">⚙️</span>
+          <span class="hide-sm">連線設定</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 連線提示或離線橫幅 -->
+    <div id="connection-banner" class="banner hidden" role="status">
+      <div class="banner-text" id="connection-banner-text"></div>
+      <div class="banner-actions">
+        <button id="btn-banner-settings" type="button" class="btn btn-primary btn-sm">設定 Web App 網址</button>
+        <button id="btn-banner-demo" type="button" class="btn btn-secondary btn-sm">先看示範模式</button>
+      </div>
+    </div>
+
+    <!-- 主分頁切換列 -->
+    <nav class="tab-bar" role="tablist" aria-label="主要功能分頁">
+      <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="briefing">
+        <span aria-hidden="true">📋</span> 今日簡報
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="board">
+        <span aria-hidden="true">⚡</span> 能量看板
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="pomo">
+        <span aria-hidden="true">🍅</span> 番茄鐘匯入
+      </button>
+    </nav>
+
+    <!-- 分頁一：今日簡報（含歷史快照查閱） -->
+    <main id="view-briefing" class="tab-view active">
+      <div id="briefing-loading" class="card empty-card hidden">
+        <div class="spinner" aria-hidden="true"></div>
+        <p>正在讀取即時簡報與試算表資料…</p>
+      </div>
+      <div id="briefing-empty" class="card empty-card hidden">
+        <h2 id="briefing-empty-title">此日期尚無歷史簡報快照</h2>
+        <p id="briefing-empty-desc">
+          每天早上 07:00 排程會自動將當日簡報寫入 <code>DailyArchive</code>。你仍可切換至「⚡ 能量看板」查看或管理該週任務。
+        </p>
+        <div class="empty-actions">
+          <button id="btn-back-today" type="button" class="btn btn-primary">回到今天</button>
+          <button id="btn-empty-open-cal" type="button" class="btn btn-secondary">選擇其他有快照的日期</button>
+        </div>
+      </div>
+      <div id="briefing-content" class="stack hidden"></div>
+    </main>
+
+    <!-- 分頁二：Weekly Board 紅／黃／綠能量看板 -->
+    <main id="view-board" class="tab-view">
+      <section class="card board-header-card">
+        <div class="board-toolbar">
+          <div class="week-nav">
+            <button id="btn-prev-week" type="button" class="btn btn-ghost btn-sm">‹ 上一週</button>
+            <button id="btn-this-week" type="button" class="btn btn-secondary btn-sm">本週</button>
+            <button id="btn-next-week" type="button" class="btn btn-ghost btn-sm">下一週 ›</button>
+            <span id="week-range-label" class="week-range-label"></span>
+          </div>
+          <button id="btn-add-task" type="button" class="btn btn-primary">
+            <span aria-hidden="true">＋</span> 新增任務
+          </button>
+        </div>
+
+        <!-- 三層級能量配額儀表 -->
+        <div class="quota-box">
+          <div class="quota-top">
+            <span class="quota-title">本週三層級能量分佈（規則：紅區 ≤ 50%｜黃區 ≤ 25%｜綠區 ≥ 25%）</span>
+            <span id="quota-total-label" class="quota-total-label">共 0 項</span>
+          </div>
+          <div class="quota-bar" aria-label="紅黃綠能量比例條">
+            <div id="quota-seg-red" class="quota-seg seg-red" style="width: 0%;"></div>
+            <div id="quota-seg-yellow" class="quota-seg seg-yellow" style="width: 0%;"></div>
+            <div id="quota-seg-green" class="quota-seg seg-green" style="width: 0%;"></div>
+          </div>
+          <div class="quota-legend">
+            <span><i class="dot dot-red"></i>高耗能紅區：<strong id="quota-red-txt">0 項 (0%)</strong></span>
+            <span><i class="dot dot-yellow"></i>中耗能黃區：<strong id="quota-yellow-txt">0 項 (0%)</strong></span>
+            <span><i class="dot dot-green"></i>低耗能綠區／提醒：<strong id="quota-green-txt">0 項 (0%)</strong></span>
+          </div>
+          <div id="quota-advice" class="quota-advice"></div>
+        </div>
+
+        <!-- 篩選膠囊 -->
+        <div class="filter-pills" role="group" aria-label="能量分區篩選">
+          <button type="button" class="pill active" data-filter="all">全部</button>
+          <button type="button" class="pill" data-filter="red">🔴 紅區</button>
+          <button type="button" class="pill" data-filter="yellow">🟡 黃區</button>
+          <button type="button" class="pill" data-filter="green">🟢 綠區／提醒</button>
+          <button type="button" class="pill" data-filter="pending">僅看未完成</button>
+        </div>
+      </section>
+
+      <section id="board-grid" class="board-grid" aria-live="polite"></section>
+    </main>
+
+    <!-- 分頁三：🍅 番茄鐘 JSON 匯入 -->
+    <main id="view-pomo" class="tab-view">
+      <div class="stack">
+        <section class="card">
+          <div class="section-head">
+            <div>
+              <h2>🍅 番茄鐘 JSON 匯入專區</h2>
+              <p class="muted">貼上「番茄鐘專注小助手」Gemini Gem 產出的標準 JSON，預覽無誤後一鍵寫入「番茄鐘專注總表（每日專注記錄）」的「總計／日均」上方並自動重算公式。</p>
+            </div>
+          </div>
+
+          <div class="pomo-input-group">
+            <label for="pomo-json-input" class="field-label">貼上 Gemini JSON 區塊（可直接含 <code>```json</code> 標記）</label>
+            <textarea id="pomo-json-input" class="code-textarea" rows="8" placeholder='{
+  "records": [
+    {
+      "date": "2026-11-22",
+      "total_hours": 4.5,
+      "daily_goal_hours": 3,
+      "achievement_rate": 1,
+      "completed_tasks": 5,
+      "details": "VOM 翻譯 3小時；希伯來文複習 1小時30分鐘"
+    }
+  ]
+}'></textarea>
+            <div class="pomo-toolbar">
+              <div class="btn-group">
+                <button id="btn-parse-pomo" type="button" class="btn btn-primary">解析並預覽</button>
+                <button id="btn-sample-pomo" type="button" class="btn btn-secondary">填入範例格式</button>
+                <button id="btn-clear-pomo" type="button" class="btn btn-ghost">清空</button>
+              </div>
+              <label class="checkbox-inline">
+                <input id="chk-pomo-overwrite" type="checkbox">
+                <span>覆蓋同日期舊紀錄（預設略過已存在日期）</span>
+              </label>
+            </div>
+            <div id="pomo-parse-error" class="alert alert-danger hidden" role="alert"></div>
+          </div>
+
+          <!-- 預覽區 -->
+          <div id="pomo-preview-box" class="pomo-preview hidden">
+            <div class="preview-header">
+              <div id="pomo-preview-summary" class="preview-summary"></div>
+              <button id="btn-import-pomo" type="button" class="btn btn-primary">一鍵匯入番茄鐘總表</button>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>日期</th>
+                    <th>專注時數</th>
+                    <th>目標</th>
+                    <th>達成率</th>
+                    <th>完成任務</th>
+                    <th>項目明細</th>
+                    <th>匯入狀態</th>
+                  </tr>
+                </thead>
+                <tbody id="pomo-preview-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="pomo-import-result" class="alert hidden" role="status"></div>
+        </section>
+
+        <!-- 番茄鐘現況總覽 -->
+        <section class="card">
+          <div class="section-head">
+            <h2>番茄鐘專注總表現況（近 15 日）</h2>
+            <span class="muted">來源欄位固定寫入「Gemini JSON 匯入」</span>
+          </div>
+          <div id="pomo-stats-container"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- 彈窗一：📅 日曆選擇與歷史快照查詢 -->
+  <div id="modal-calendar" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-calendar-title">
+    <div class="modal-backdrop" data-close="modal-calendar"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-calendar-title">📅 選擇日期 / 查詢過往紀錄</h3>
+        <button type="button" class="icon-close" data-close="modal-calendar" aria-label="關閉">✕</button>
+      </div>
+      <div class="modal-body stack-sm">
+        <div class="field-row">
+          <label for="calendar-date-input" class="field-label">指定日期</label>
+          <div class="inline-controls">
+            <input id="calendar-date-input" type="date" class="input">
+            <button id="btn-cal-go" type="button" class="btn btn-primary">前往此日期</button>
+            <button id="btn-cal-today" type="button" class="btn btn-secondary">回到今天</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">已封存簡報快照（DailyArchive）</div>
+          <p class="muted small">點選日期即可載入當天 07:00 封存的每日簡報與該週能量看板：</p>
+          <div id="archive-dates-list" class="archive-chips"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 彈窗二：新增 / 編輯任務 -->
+  <div id="modal-task" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-task-title">
+    <div class="modal-backdrop" data-close="modal-task"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-task-title">新增能量看板任務</h3>
+        <button type="button" class="icon-close" data-close="modal-task" aria-label="關閉">✕</button>
+      </div>
+      <form id="form-task" class="modal-body stack-sm">
+        <input id="task-id" type="hidden">
+        <div class="two-col">
+          <div class="field-row">
+            <label for="task-date" class="field-label">日期</label>
+            <input id="task-date" type="date" class="input" required>
+          </div>
+          <div class="field-row">
+            <label for="task-time" class="field-label">時段（選填）</label>
+            <input id="task-time" type="text" class="input" placeholder="例：09:00–11:00 或 全天">
+          </div>
+        </div>
+        <div class="field-row">
+          <label for="task-zone" class="field-label">能量分區</label>
+          <select id="task-zone" class="input">
+            <option value="red">🔴 高耗能紅區（翻譯產出／研究所報告與課程／外語）</option>
+            <option value="yellow">🟡 中耗能黃區（語料整理／工具腳本／所學會／財務行政）</option>
+            <option value="green">🟢 低耗能綠區／提醒（運動／修復／放空／信用卡截止提醒）</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label for="task-title" class="field-label">任務標題</label>
+          <input id="task-title" type="text" class="input" placeholder="輸入具體可執行的一件事" required>
+        </div>
+        <div class="field-row">
+          <label for="task-note" class="field-label">備註（選填）</label>
+          <textarea id="task-note" class="input" rows="3" placeholder="相關細節、連結或降級方案"></textarea>
+        </div>
+        <label class="checkbox-inline">
+          <input id="task-completed" type="checkbox">
+          <span>標記為已完成</span>
+        </label>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close="modal-task">取消</button>
+          <button type="submit" id="btn-save-task" class="btn btn-primary">儲存任務</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 彈窗三：GAS Web App 連線設定 -->
+  <div id="modal-settings" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-settings-title">
+    <div class="modal-backdrop" data-close="modal-settings"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-settings-title">⚙️ GAS 後端連線設定</h3>
+        <button type="button" class="icon-close" data-close="modal-settings" aria-label="關閉">✕</button>
+      </div>
+      <form id="form-settings" class="modal-body stack-sm">
+        <div class="field-row">
+          <label for="setting-api-url" class="field-label">Google Apps Script Web App URL</label>
+          <input id="setting-api-url" type="url" class="input" placeholder="https://script.google.com/macros/s/.../exec">
+          <p class="muted small">於 Apps Script 點選「部署 ＞ 新增部署 ＞ 網頁應用程式（所有人可存取）」後取得的 <code>/exec</code> 網址；設定會儲存在本機瀏覽器。</p>
+        </div>
+        <div class="field-row">
+          <label for="setting-api-token" class="field-label">API 權杖（選填，對應指令碼屬性 <code>WEB_API_TOKEN</code>）</label>
+          <input id="setting-api-token" type="password" class="input" placeholder="若 GAS 未設定 WEB_API_TOKEN 可留空">
+        </div>
+        <div id="settings-test-result" class="alert hidden" role="status"></div>
+        <div class="modal-footer">
+          <button id="btn-test-connection" type="button" class="btn btn-secondary">測試連線</button>
+          <button id="btn-enter-demo" type="button" class="btn btn-ghost">使用示範模式</button>
+          <button type="submit" class="btn btn-primary">儲存並同步</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast 通知容器 -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
